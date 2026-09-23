@@ -1,0 +1,14 @@
+.env
+config/*.json
+!config/*.example.json
+target/
+.idea/
+*.iml
+__pycache__/
+.pytest_cache/
+*.pyc
+app/*.apk
+reports/*
+!reports/.gitkeep
+screenshots/*
+!screenshots/.gitkeep

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="SmartAccess Android Suite" verbose="1" parallel="false">
+    <listeners><listener class-name="com.smartaccess.automation.listeners.FailureArtifactListener"/></listeners>
+    <test name="Smoke and permissions">
+        <groups><run><include name="smoke"/><include name="permissions"/><include name="e2e"/></run></groups>
+        <packages><package name="com.smartaccess.automation.tests"/></packages>
+    </test>
+</suite>

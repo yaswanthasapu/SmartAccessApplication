@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.smartaccess</groupId>
+    <artifactId>mobile-automation</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <name>SmartAccess Android Automation</name>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <appium.version>10.1.1</appium.version>
+        <testng.version>7.12.0</testng.version>
+        <jackson.version>2.22.2</jackson.version>
+        <surefire.version>3.5.4</surefire.version>
+        <testConfig>config/uat1.json</testConfig>
+        <device></device>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.appium</groupId><artifactId>java-client</artifactId><version>${appium.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.testng</groupId><artifactId>testng</artifactId><version>${testng.version}</version><scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId><version>${jackson.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>${surefire.version}</version>
+                <configuration>
+                    <suiteXmlFiles><suiteXmlFile>testng.xml</suiteXmlFile></suiteXmlFiles>
+                    <reportsDirectory>${project.basedir}/reports/testng</reportsDirectory>
+                    <systemPropertyVariables>
+                        <testConfig>${testConfig}</testConfig><device>${device}</device>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
