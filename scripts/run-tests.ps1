@@ -1,8 +1,12 @@
 param(
     [string]$Device = "",
     [string]$Config = "config/uat1.json",
+    [ValidateSet("arm", "panic")]
+    [string]$Flow = "arm",
     [ValidateSet("activate", "deactivate", "cancel-deactivation")]
-    [string]$ArmModeAction = "activate"
+    [string]$ArmModeAction = "activate",
+    [ValidateSet("smart-access", "cancel")]
+    [string]$PanicAction = "cancel"
 )
 
 $ErrorActionPreference = "Stop"
@@ -41,6 +45,8 @@ try {
 
 $mavenArguments = @("test", "-DtestConfig=$configPath")
 if ($Device) { $mavenArguments += "-Ddevice=$Device" }
+$mavenArguments += "-Dflow=$Flow"
 $mavenArguments += "-DarmModeAction=$ArmModeAction"
+$mavenArguments += "-DpanicAction=$PanicAction"
 Push-Location $projectRoot
 try { & mvn @mavenArguments } finally { Pop-Location }

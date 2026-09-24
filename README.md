@@ -45,4 +45,12 @@ ARM confirmation. The PowerShell runner accepts `-ArmModeAction activate`,
 grants the APK's runtime permissions during installation. Its locators are in
 `src/test/java/com/smartaccess/automation/pages`.
 
+Run the Panic confirmation flow without activating it:
+
+```powershell
+.\scripts\run-tests.ps1 -Device RZGL20YYSMF -Flow panic -PanicAction cancel
+```
+
+Use `-PanicAction smart-access` to select Smart Access on the confirmation.
+
 The real JSON configuration is ignored by Git because it contains credentials.
