@@ -14,7 +14,7 @@
         <testng.version>7.12.0</testng.version>
         <jackson.version>2.22.2</jackson.version>
         <surefire.version>3.5.4</surefire.version>
-        <testConfig>config/uat1.json</testConfig>
+        <testConfig>config/excecution.json</testConfig>
         <device></device>
     </properties>
 

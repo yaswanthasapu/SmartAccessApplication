@@ -9,19 +9,19 @@ import org.testng.Assert;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.function.Supplier;
 
 public class ArmDisarmPage extends BasePage {
+    private Boolean verifiedBluetoothState;
     private static final String VAULT_BLOCKED_MESSAGE =
             "Operation not allowed: device is online and armed for configType=VAULT";
     private static final By VAULT_BLOCKED = AppiumBy.xpath(
-            "//android.view.View[@content-desc='" + VAULT_BLOCKED_MESSAGE + "']");
+            "//android.view.View[@content-desc='" + VAULT_BLOCKED_MESSAGE + "' or "
+                    + "@content-desc='Branch is in ARMED state, cannot perform transaction']");
     private static final By ARM_DISARM = AppiumBy.xpath(
             "//android.widget.FrameLayout[@resource-id='android:id/content']" +
                     "/android.widget.FrameLayout/android.view.View/android.view.View" +
                     "/android.view.View/android.view.View/android.view.View[2]/android.view.View[5]");
-    private static final By MAIN_DOOR_ALERT = AppiumBy.xpath(
-            "//*[contains(@content-desc, 'Please close Main door') " +
-                    "or contains(@text, 'Please close Main door')]");
     private static final By DEACTIVATE_MESSAGE = AppiumBy.xpath(
             "//android.view.View[@content-desc='Would you like to deactivate " +
                     "MAFIN-DEMO-HYD-TEST-BPIM5 ARM mode?']");
@@ -53,6 +53,18 @@ public class ArmDisarmPage extends BasePage {
         return true;
     }
 
+    public boolean deactivateArmWithProfileRecovery(boolean confirmDeactivation,
+                                                     Supplier<Boolean> profileRecovery) {
+        if (!isVaultOperationBlocked()) return true;
+        captureStep("08_Vault_Operation_Blocked_While_Armed");
+        boolean authenticated = openArmDisarmFrs().authenticateWithProfileRecovery(profileRecovery);
+        if (!authenticated) return false;
+        chooseArmModeChange(DEACTIVATE_MESSAGE,
+                "Would you like to deactivate MAFIN-DEMO-HYD-TEST-BPIM5 ARM mode?",
+                confirmDeactivation, "Deactivate");
+        return true;
+    }
+
     public boolean activateArm() {
         if (isVaultOperationBlocked()) return false;
         captureStep("08_System_Disarmed_Before_Activation");
@@ -72,14 +84,51 @@ public class ArmDisarmPage extends BasePage {
         }
     }
 
-    private FrsPage openArmDisarmFrs() {
-        List<WebElement> mainDoorAlerts = driver.findElements(MAIN_DOOR_ALERT);
-        if (!mainDoorAlerts.isEmpty()) {
-            captureStep("09_FRS_Blocked_Main_Door_Open");
-            List<WebElement> okButtons = driver.findElements(AppiumBy.accessibilityId("OK"));
-            if (!okButtons.isEmpty()) okButtons.getFirst().click();
-            Assert.fail("FRS cannot start: Please close Main door. Then Retry.");
+    /** Wait for positive screen evidence; absence of an ARM warning is not DISARM proof. */
+    public boolean waitForKnownArmState() {
+        String state = new WebDriverWait(driver, Duration.ofSeconds(60)).until(ignored -> {
+            if (driver.findElements(VAULT_BLOCKED).stream().anyMatch(WebElement::isDisplayed))
+                return "ARMED";
+            if (driver.findElements(AppiumBy.accessibilityId("Requesting Access")).stream()
+                    .anyMatch(WebElement::isDisplayed)
+                    && driver.findElements(AppiumBy.xpath("//android.widget.ImageView[@content-desc='Vault']"))
+                    .stream().anyMatch(WebElement::isDisplayed)) return "DISARMED";
+            return null;
+        });
+        logStep("Site state verified: " + state);
+        return "ARMED".equals(state);
+    }
+
+    public void verifyArmState(boolean armed) {
+        if (Boolean.valueOf(armed).equals(verifiedBluetoothState)) {
+            logStep("State already verified by Bluetooth result: " + (armed ? "ARMED" : "DISARMED"));
+            return;
         }
+        new WebDriverWait(driver, Duration.ofSeconds(60)).until(ignored -> {
+            BluetoothArmDisarmPage bluetooth = new BluetoothArmDisarmPage(driver);
+            if (bluetooth.isVisible()) {
+                bluetooth.complete(armed);
+                verifiedBluetoothState = armed;
+                return true; // Done returns to dashboard; do not wait for site controls there.
+            }
+            By success = AppiumBy.accessibilityId(armed
+                    ? "Site armed successfully" : "Site disarmed successfully");
+            if (driver.findElements(success).stream().anyMatch(WebElement::isDisplayed)) {
+                captureStep("ARM_DISARM_Result_Verified");
+                click(AppiumBy.accessibilityId("OK"));
+                return true;
+            }
+            boolean blocked = driver.findElements(VAULT_BLOCKED).stream().anyMatch(WebElement::isDisplayed);
+            boolean doorVisible = driver.findElements(AppiumBy.xpath(
+                    "//android.widget.ImageView[@content-desc='Vault']")).stream().anyMatch(WebElement::isDisplayed);
+            return armed ? blocked : !blocked && doorVisible;
+        });
+        captureStep(armed ? "Site_ARMED_Verified" : "Site_DISARMED_Verified");
+    }
+
+    private FrsPage openArmDisarmFrs() {
+        verifiedBluetoothState = null;
+        new AlertPage(driver).dismissDoorAlertIfPresent();
         captureStep("09_Before_Click_Arm_Disarm");
         click(ARM_DISARM);
         allowAnyVisibleRuntimePermissions();
@@ -89,7 +138,20 @@ public class ArmDisarmPage extends BasePage {
 
     private void chooseArmModeChange(By messageLocator, String expectedMessage,
                                      boolean confirmChange, String actionName) {
+        BluetoothArmDisarmPage bluetooth = new BluetoothArmDisarmPage(driver);
+        String nextScreen = wait.until(ignored -> {
+            if (bluetooth.isVisible()) return "bluetooth";
+            if (driver.findElements(messageLocator).stream().anyMatch(WebElement::isDisplayed))
+                return "confirmation";
+            return null;
+        });
+        if ("bluetooth".equals(nextScreen)) {
+            bluetooth.complete("Activate".equals(actionName));
+            verifiedBluetoothState = "Activate".equals(actionName);
+            return;
+        }
         WebElement message = wait.until(ignored -> {
+            new AlertPage(driver).dismissDoorAlertIfPresent();
             List<WebElement> matches = driver.findElements(messageLocator);
             return matches.isEmpty() ? null : matches.getFirst();
         });
@@ -105,7 +167,7 @@ public class ArmDisarmPage extends BasePage {
             for (By button : ANDROID_PERMISSION_BUTTONS) {
                 List<WebElement> matches = driver.findElements(button);
                 if (!matches.isEmpty() && matches.getFirst().isDisplayed()) {
-                    matches.getFirst().click();
+                    clickElement(matches.getFirst(), "ArmDisarmPage click");
                     allowed = true;
                     break;
                 }
@@ -115,83 +177,4 @@ public class ArmDisarmPage extends BasePage {
         Assert.fail("More Android permission prompts appeared than expected.");
     }
 
-    private static final class FrsPage extends BasePage {
-        private static final String FAILURE_MESSAGE = "Face not recognized. Please ensure your face is " +
-                "clearly visible and matches your registered profile.";
-        private static final String SUCCESS_MESSAGE = "Face authentication completed successfully";
-
-        private static final By PHOTO_OK = AppiumBy.xpath(
-                "//android.widget.ImageView[@content-desc='OK']");
-        private static final By RETAKE = AppiumBy.xpath(
-                "//android.widget.ImageView[@content-desc='Retake']");
-        private static final By FAILED = AppiumBy.xpath(
-                "//android.view.View[@content-desc='Failed']");
-        private static final By FAILURE_TEXT = AppiumBy.xpath(
-                "//android.view.View[@content-desc='" + FAILURE_MESSAGE + "']");
-        private static final By SUCCESS = AppiumBy.xpath(
-                "//android.view.View[@content-desc='Success']");
-        private static final By SUCCESS_TEXT = AppiumBy.xpath(
-                "//android.view.View[@content-desc='" + SUCCESS_MESSAGE + "']");
-        private static final By DIALOG_OK = AppiumBy.xpath(
-                "//android.widget.Button[@content-desc='OK']");
-
-        private final WebDriverWait frsWait;
-
-        private FrsPage(AndroidDriver driver) {
-            super(driver);
-            frsWait = new WebDriverWait(driver, Duration.ofSeconds(60));
-        }
-
-        private void authenticateWithOneRetry() {
-            submitCapturedFace("11_FRS_First_Photo_Review");
-            if (waitForOutcome() == Outcome.FAILED) {
-                verifyFailureAndRetry();
-                submitCapturedFace("12_FRS_Retry_Photo_Review");
-                Assert.assertEquals(waitForOutcome(), Outcome.SUCCESS,
-                        "FRS face authentication failed after one retry.");
-            }
-            verifySuccessAndDismiss();
-        }
-
-        private void submitCapturedFace(String screenshotName) {
-            WebElement ok = frsWait.until(ignored -> firstDisplayed(PHOTO_OK));
-            captureStep(screenshotName);
-            ok.click();
-        }
-
-        private Outcome waitForOutcome() {
-            return frsWait.until(ignored -> {
-                if (firstDisplayed(SUCCESS) != null) return Outcome.SUCCESS;
-                if (firstDisplayed(FAILED) != null) return Outcome.FAILED;
-                return null;
-            });
-        }
-
-        private void verifyFailureAndRetry() {
-            WebElement failure = frsWait.until(ignored -> firstDisplayed(FAILURE_TEXT));
-            Assert.assertEquals(failure.getAttribute("content-desc"), FAILURE_MESSAGE);
-            captureStep("12_FRS_Face_Not_Recognized");
-            click(DIALOG_OK);
-            WebElement retake = frsWait.until(ignored -> firstDisplayed(RETAKE));
-            retake.click();
-            captureStep("12_FRS_Retake_Started");
-        }
-
-        private void verifySuccessAndDismiss() {
-            Assert.assertNotNull(firstDisplayed(SUCCESS), "FRS success heading was not displayed.");
-            WebElement successText = frsWait.until(ignored -> firstDisplayed(SUCCESS_TEXT));
-            Assert.assertEquals(successText.getAttribute("content-desc"), SUCCESS_MESSAGE);
-            captureStep("13_FRS_Face_Authentication_Success");
-            click(DIALOG_OK);
-            captureStep("14_After_FRS_Success_OK");
-        }
-
-        private WebElement firstDisplayed(By locator) {
-            for (WebElement element : driver.findElements(locator))
-                if (element.isDisplayed()) return element;
-            return null;
-        }
-
-        private enum Outcome { SUCCESS, FAILED }
-    }
 }

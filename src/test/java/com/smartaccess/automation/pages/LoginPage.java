@@ -23,11 +23,14 @@ public class LoginPage extends BasePage {
 
     public void login(String username, String password) {
         enterText(USERNAME, username);
+        logStep("Username entered");
         hideKeyboardIfVisible();
         enterText(PASSWORD, password);
+        logStep("Password entered (value hidden)");
         hideKeyboardIfVisible();
         captureStep("03_Before_Login_Proceed_Click");
-        waitForClickability(PROCEED).click();
+        clickElement(waitForClickability(PROCEED), "LoginPage click");
+        logStep("Login submitted");
         failWhenTryAgainAppears();
     }
 
@@ -36,7 +39,7 @@ public class LoginPage extends BasePage {
         try {
             WebElement tryAgain = shortWait.until(ExpectedConditions.visibilityOfElementLocated(TRY_AGAIN));
             captureStep("04_Login_Failed_Try_Again_Popup");
-            tryAgain.click();
+            clickElement(tryAgain, "LoginPage click");
             Assert.fail("Login failed: the Try Again popup appeared.");
         } catch (org.openqa.selenium.TimeoutException ignored) {
             // No failure popup appeared; continue to module selection.

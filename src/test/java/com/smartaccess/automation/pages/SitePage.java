@@ -9,6 +9,13 @@ import org.testng.Assert;
 public class SitePage extends BasePage {
     public SitePage(AndroidDriver driver) { super(driver); }
 
+    public void verifySiteList() {
+        waitForClickability(AppiumBy.accessibilityId("List view"));
+        wait.until(ignored -> driver.findElements(AppiumBy.xpath(
+                "//android.widget.ImageView[contains(@content-desc, '\n')]"))
+                .stream().anyMatch(WebElement::isDisplayed));
+    }
+
     public ArmDisarmPage selectSite(String targetSite) {
         captureStep("05_Site_List_Screen");
         String escapedSite = targetSite.replace("\\", "\\\\").replace("\"", "\\\"");
@@ -19,7 +26,7 @@ public class SitePage extends BasePage {
         WebElement siteCard = waitForClickability(AppiumBy.androidUIAutomator(scrollQuery));
         Assert.assertTrue(siteCard.isDisplayed(), "Site card was not found: " + targetSite);
         captureStep("06_Before_Click_Site_" + targetSite);
-        siteCard.click();
+        clickElement(siteCard, "SitePage click");
         captureStep("07_After_Click_Site_" + targetSite);
         return new ArmDisarmPage(driver);
     }

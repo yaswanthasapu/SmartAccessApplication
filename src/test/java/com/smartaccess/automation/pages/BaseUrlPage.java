@@ -12,6 +12,8 @@ public class BaseUrlPage extends BasePage {
 
     public void applyBaseUrl(String url) {
         enterText(BASE_URL, url);
+        logStep("URL entered");
         click(APPLY);
+        logStep("Apply clicked");
     }
 }

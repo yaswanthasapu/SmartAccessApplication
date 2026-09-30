@@ -15,7 +15,7 @@ public final class ConfigLoader {
 
     public static synchronized RunConfig load() {
         if (cached != null) return cached;
-        String configuredPath = System.getProperty("testConfig", "config/uat1.json");
+        String configuredPath = System.getProperty("testConfig", "config/excecution.json");
         Path path = Path.of(configuredPath);
         if (!path.isAbsolute()) path = PROJECT_ROOT.resolve(path).normalize();
         if (!Files.isRegularFile(path)) throw new IllegalStateException("Test configuration not found: " + path);
@@ -27,8 +27,8 @@ public final class ConfigLoader {
         } catch (IOException error) {
             throw new IllegalStateException("Unable to read test configuration: " + path, error);
         }
-        if (cached.appium() == null || cached.application() == null)
-            throw new IllegalStateException("Missing appium or application section in " + path);
+        if (cached.appium() == null || cached.application() == null || cached.execution() == null)
+            throw new IllegalStateException("Missing appium, application, or execution section in " + path);
         if (!Files.isRegularFile(apkPath())) throw new IllegalStateException("APK not found: " + apkPath());
         return cached;
     }

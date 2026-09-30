@@ -5,41 +5,35 @@ import com.smartaccess.automation.pages.ArmDisarmPage;
 import com.smartaccess.automation.pages.BaseUrlPage;
 import com.smartaccess.automation.pages.DashboardPage;
 import com.smartaccess.automation.pages.LoginPage;
-import com.smartaccess.automation.pages.PanicPage;
+import com.smartaccess.automation.pages.ProfileRecoveryPage;
 import com.smartaccess.automation.pages.SitePage;
+import com.smartaccess.automation.pages.VaultAccessPage;
 import org.testng.annotations.Test;
 
 public class LoginAndSiteTest extends BaseTest {
     @Test(groups = {"e2e", "requires-login"})
-    public void loginOpenSmartAccessSelectSiteAndRunSelectedFlow() {
+    public void executeConfiguredSmartAccessFlow() {
         new BaseUrlPage(driver).applyBaseUrl(config.environment().url());
         new AccountPage(driver).proceedWithAccount(config.environment().accountId());
         new LoginPage(driver).login(config.credentials().username(), config.credentials().password());
-        new DashboardPage(driver).openSmartAccess();
-        ArmDisarmPage armDisarmPage = new SitePage(driver).selectSite("MAFIN1001");
-        String flow = System.getProperty("flow", "arm");
-        switch (flow) {
-            case "arm" -> {
-                String armModeAction = System.getProperty("armModeAction", "activate");
-                switch (armModeAction) {
-                    case "activate" -> armDisarmPage.activateArm();
-                    case "deactivate" -> armDisarmPage.deactivateArm(true);
-                    case "cancel-deactivation" -> armDisarmPage.deactivateArm(false);
-                    default -> throw new IllegalArgumentException(
-                            "Unsupported armModeAction: " + armModeAction);
-                }
-            }
-            case "panic" -> {
-                String panicAction = System.getProperty("panicAction", "cancel");
-                new PanicPage(driver).respondToPanicConfirmation(
-                        switch (panicAction) {
-                            case "smart-access" -> true;
-                            case "cancel" -> false;
-                            default -> throw new IllegalArgumentException(
-                                    "Unsupported panicAction: " + panicAction);
-                        });
-            }
-            default -> throw new IllegalArgumentException("Unsupported flow: " + flow);
+        DashboardPage dashboard = new DashboardPage(driver);
+        dashboard.openSmartAccess();
+
+        SitePage sites = new SitePage(driver);
+        ArmDisarmPage armDisarm = sites.selectSite(config.execution().siteId());
+        if (!"disarm-if-armed".equals(config.execution().armPolicy()))
+            throw new IllegalArgumentException("Unsupported execution.armPolicy: "
+                    + config.execution().armPolicy());
+
+        if (armDisarm.isVaultOperationBlocked()) {
+            boolean disarmed = armDisarm.deactivateArmWithProfileRecovery(true,
+                    () -> new ProfileRecoveryPage(driver).recoverRevokedProfile(
+                            config.execution().profileUserName(), config.execution().approvedAction()));
+            if (!disarmed) return;
+            dashboard.reopenSmartAccess();
+            sites.selectSite(config.execution().siteId());
         }
+
+        new VaultAccessPage(driver).execute(config.execution());
     }
 }
